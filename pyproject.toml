@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kvmfleet-bmc-adapters"
-version = "0.1.0"
+version = "0.3.0"
 description = "Production-grade async Python client for multi-vendor BMC Redfish access (Dell iDRAC, HPE iLO, Supermicro, Lenovo XCC, OpenBMC). Powers KVM Fleet's hosted access-governance platform."
 readme = "README.md"
 license = { file = "LICENSE" }

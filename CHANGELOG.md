@@ -4,6 +4,28 @@ All notable changes to `kvmfleet-bmc-adapters` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [SemVer](https://semver.org/).
 
+## [0.3.0] — 2026-06-05
+
+Maximise-within-scope pass: expand `RedfishClient` from a platform-pull
+minimum to the full operator surface a BMC adapter should reasonably
+expose. No breaking changes — all v0.1.0 APIs remain.
+
+### Added (23 methods)
+
+- **Identity + topology** — `system_info`, `chassis_health`
+- **Sensors** — `temperatures`, `fans`, `power_supplies`, `power_metrics`
+- **Inventory** — `processors`, `memory_modules`, `drives`, `volumes`,
+  `network_adapters`, `firmware_inventory`
+- **Boot** — `boot_config`, `set_next_boot`, `set_boot_order`
+- **System event log** — `sel_entries`, `clear_sel` (probes SEL,
+  iDRAC Lifecycle, and iLO IML registries in turn)
+- **BIOS / settings** — `bios_attributes`, `set_bios_attribute`
+- **Power control extras** — `force_off`, `graceful_shutdown`,
+  `graceful_restart`, `nmi`
+
+All new methods follow the existing async + vendor-quirks-handling
+pattern from v0.1.0; tests use `respx` to mock vendor responses.
+
 ## [0.1.0] — 2026-06-03
 
 Initial public release. Extracted from the production KVM Fleet platform

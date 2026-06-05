@@ -1,33 +1,58 @@
-"""kvmfleet-bmc-adapters — multi-vendor BMC Redfish client.
+"""kvmfleet-bmc-adapters — async Python library for out-of-band server management.
 
-Async Python client for Dell iDRAC, HPE iLO, Supermicro, Lenovo XCC,
-and OpenBMC (and anything else that speaks the DMTF Redfish standard
-well enough). Powers the hosted access-governance platform at
-https://kvmfleet.io, released under Apache 2.0 so anyone building
-tooling against multi-vendor BMCs can reuse the parts that matter.
+Multi-vendor, multi-protocol. The library covers the operator-facing
+surface every fleet needs: power, sensors, inventory, system event log,
+virtual media — across Redfish (Dell iDRAC / HPE iLO / Supermicro /
+Lenovo XCC / OpenBMC), IPMI (pre-Redfish hardware), smart PDUs
+(APC / Eaton / Raritan), and Wake-on-LAN.
 
-The shape is deliberately small. Everything is async. The library
-accepts plaintext credentials or a callable; secret encryption is
-the caller's job.
+Vendor quirks are absorbed inside the clients so they don't bleed into
+calling code. Releases under Apache 2.0; powers the hosted access-
+governance platform at https://kvmfleet.io.
 
-Usage:
+Usage — Redfish (covered since v0.1.0):
 
     from bmc_adapters import RedfishClient
-
     async with RedfishClient(
         base_url="https://idrac.example.com",
         username="root",
         password="calvin",
-    ) as client:
-        snap = await client.heartbeat()
-        info = await client.system_info()
-        temps = await client.temperatures()
-        drives = await client.drive_inventory()
-        await client.power_action("cycle")
-        await client.insert_virtual_media("https://example.com/ubuntu.iso")
+    ) as bmc:
+        await bmc.power_action("cycle")
 
-See README.md for the full interface + supported vendors.
+Usage — IPMI (v0.4.0, pyghmi-backed, requires `[ipmi]` extra):
+
+    from bmc_adapters.ipmi import IPMIClient, IPMIConfig
+    async with IPMIClient(IPMIConfig(
+        host="bmc.example.com",
+        username="ADMIN",
+        password=__SECRET__,
+    )) as bmc:
+        await bmc.power_action("cycle")
+        for f in bmc.findings:
+            audit.append(f.to_dict())
+
+Usage — PDU (v0.4.0, requires `[pdu]` extra for SNMP backends):
+
+    from bmc_adapters.pdu import APCPDUClient
+    async with APCPDUClient("10.0.5.20", community=__SECRET__) as pdu:
+        await pdu.outlet_cycle(3)
+
+Usage — Wake-on-LAN (v0.4.0):
+
+    from bmc_adapters import wake_on_lan
+    await wake_on_lan("aa:bb:cc:dd:ee:ff")
 """
+from bmc_adapters.base import BMCAdapter, Feature
+from bmc_adapters.bmc import BMC
+from bmc_adapters.findings import (
+    DEFAULT_CREDENTIAL_FINGERPRINTS,
+    BMCFinding,
+    FindingCode,
+    Severity,
+    matches_default_credential,
+    pantsdown_finding,
+)
 from bmc_adapters.redfish import (
     ACTION_TO_REDFISH,
     BmcUser,
@@ -51,10 +76,12 @@ from bmc_adapters.redfish import (
     SystemInfo,
     TemperatureReading,
 )
+from bmc_adapters.wol import wake_on_lan, wake_on_lan_sync
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
+    # Redfish (existing)
     "ACTION_TO_REDFISH",
     "BmcUser",
     "BootConfig",
@@ -76,5 +103,19 @@ __all__ = [
     "StorageVolume",
     "SystemInfo",
     "TemperatureReading",
+    # Cross-protocol
+    "BMC",
+    "BMCAdapter",
+    "BMCFinding",
+    "DEFAULT_CREDENTIAL_FINGERPRINTS",
+    "Feature",
+    "FindingCode",
+    "Severity",
+    "matches_default_credential",
+    "pantsdown_finding",
+    # WoL
+    "wake_on_lan",
+    "wake_on_lan_sync",
+    # Version
     "__version__",
 ]

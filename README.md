@@ -1,17 +1,43 @@
 # kvmfleet-bmc-adapters
 
-Async Python client for multi-vendor BMC Redfish access.
+**Async Python library for out-of-band server management** — Redfish
+across Dell / HPE / Supermicro / Lenovo / OpenBMC, IPMI for pre-Redfish
+hardware, smart PDUs (APC / Eaton / Raritan), and Wake-on-LAN. Vendor
+quirks absorbed so they don't bleed into your code.
 
 Used in production by the hosted access-governance platform at
-[kvmfleet.io](https://kvmfleet.io). Released under Apache 2.0 so
-anyone building tooling against mixed-vendor BMC fleets can reuse
-the pieces.
+[kvmfleet.io](https://kvmfleet.io). Apache 2.0.
+
+## Quick install
+
+```bash
+pip install kvmfleet-bmc-adapters           # Redfish + WoL only
+pip install 'kvmfleet-bmc-adapters[ipmi]'   # + IPMI (pyghmi)
+pip install 'kvmfleet-bmc-adapters[pdu]'    # + PDU SNMP (pysnmp)
+pip install 'kvmfleet-bmc-adapters[all]'    # everything
+```
 
 ## What this is
 
-An async Python library that covers the Redfish operations a BMC
-operator reaches for, across **Dell iDRAC, HPE iLO, Supermicro
-IPMI/BMC, Lenovo XCC, and OpenBMC** via the DMTF Redfish standard.
+An async Python library that covers the operator-facing surface of
+out-of-band server management across four protocols:
+
+| Protocol | Vendors / scope | Module |
+|---|---|---|
+| **Redfish** | Dell iDRAC, HPE iLO, Supermicro, Lenovo XCC, OpenBMC | `bmc_adapters.RedfishClient` |
+| **IPMI** | pre-Redfish hardware (iDRAC6/7/8, iLO3/4, SMC X9/X10/X11, OEM Aspeed BMCs) | `bmc_adapters.ipmi.IPMIClient` |
+| **PDU** | APC AP86xx/88xx/89xx, Eaton ePDU G4, Raritan PX2/3/4 (Legrand) | `bmc_adapters.pdu.*` |
+| **Wake-on-LAN** | any NIC with magic-packet support enabled in BIOS | `bmc_adapters.wake_on_lan` |
+
+Vendor quirks (cipher 17 vs cipher 3 negotiation, SDR cache bugs on
+SMC X9/X10, RAKP timing on iLO3, outlet 0-vs-1-indexing on Raritan,
+ATX power-LED state polling on PiKVM, ...) live inside the clients,
+not in your code.
+
+## Redfish — the original surface (v0.1.0+)
+
+Covered operations across Dell iDRAC, HPE iLO, Supermicro, Lenovo XCC,
+and OpenBMC via the DMTF Redfish standard:
 
 **Heartbeat + identity**
 - `heartbeat()` — power state + first temp + health rollup
@@ -66,16 +92,142 @@ Plus session lifecycle handling — SessionService + Basic-auth
 fallback, token refresh, retry-on-401 — so the auth quirks don't
 bleed into your code.
 
+## IPMI — pre-Redfish hardware (v0.4.0+)
+
+For the long tail of pre-2018 servers Redfish doesn't reach. Wraps
+[pyghmi](https://opendev.org/x/pyghmi) (Apache 2.0, used by OpenStack
+Ironic) behind the same async surface as `RedfishClient`.
+
+```python
+from bmc_adapters.ipmi import IPMIClient, IPMIConfig
+
+async with IPMIClient(IPMIConfig(
+    host="bmc.example.com",
+    username="ADMIN",
+    password="...",
+)) as bmc:
+    await bmc.power_action("cycle")
+    sensors = await bmc.sensors()
+    sel = await bmc.sel_entries(limit=50)
+    for finding in bmc.findings:
+        audit.append(finding.to_dict())
+```
+
+Secure defaults:
+
+- Refuses IPMI 1.5 (`allow_ipmi_1_5=False` by default).
+- Refuses cipher suites 0, 1, 2, 6, 7, 8, 11, 12 — period.
+- Prefers cipher 17 (SHA-256), falls back to cipher 3 (SHA-1).
+- Default-credential detection without probing — constant-time
+  compare against the documented vendor/user/password table.
+- Emits structured `BMCFinding` records for cipher-0 acceptance,
+  default-cred matches, Pantsdown firmware windows
+  (CVE-2019-6260) on AST2400 / AST2500 BMCs.
+
+## Smart PDU control (v0.4.0+)
+
+When the BMC is dead or the NIC has hung, the operator reaches for
+the rack PDU. Async clients for the dominant vendors:
+
+```python
+from bmc_adapters.pdu import APCPDUClient, RaritanPDUClient
+
+# APC over SNMP (v2c or v3)
+async with APCPDUClient("10.0.5.20", community="...") as pdu:
+    outlets = await pdu.list_outlets()
+    await pdu.outlet_cycle(3)
+
+# Raritan via JSON-RPC over HTTPS
+async with RaritanPDUClient(
+    "https://pdu-2.example.com",
+    username="admin",
+    password="...",
+) as pdu:
+    await pdu.outlet_off("server-rack-7")  # by name
+```
+
+Vendor coverage in v0.4.0:
+
+| Vendor | Models | Protocol | Module |
+|---|---|---|---|
+| APC (Schneider) | AP86xx, AP88xx, AP89xx (NMC2 / NMC3) | SNMPv2c, SNMPv3 (PowerNet-MIB) | `APCPDUClient` |
+| Eaton | ePDU G4 (Network-M2 / M3) | SNMPv2c, SNMPv3 (EATON-EPDU-MIB) | `EatonPDUClient` |
+| Raritan / Legrand | PX2, PX3, PX4 | JSON-RPC over HTTPS | `RaritanPDUClient` |
+
+Refuses SNMPv2c by default unless `allow_snmpv2c=True` is passed
+(plaintext community strings are not okay on a shared management
+network). Vendor auto-detect via SNMP `sysObjectID` available through
+`vendor_from_sysobjectid()`.
+
+## Wake-on-LAN (v0.4.0+)
+
+For systems without a BMC at all (edge boxes, homelab, consumer
+boards). One function, no dependency:
+
+```python
+from bmc_adapters import wake_on_lan
+
+await wake_on_lan("aa:bb:cc:dd:ee:ff")
+# or directed broadcast:
+await wake_on_lan("aa:bb:cc:dd:ee:ff", broadcast="10.0.5.255")
+```
+
+Magic packets are L2-pattern-matched by the NIC firmware before the
+IP stack, so the destination port is cosmetic; we default to UDP/9.
+
+## Cross-protocol orchestration
+
+The `BMC` orchestrator composes per-protocol adapters and dispatches
+power actions across them. Borrowed from [bmclib](https://github.com/bmc-toolbox/bmclib)'s
+registry pattern.
+
+```python
+from bmc_adapters import BMC, RedfishClient
+from bmc_adapters.ipmi import IPMIClient, IPMIConfig
+from bmc_adapters.pdu import APCPDUClient
+
+async with (
+    RedfishClient(...) as redfish,
+    IPMIClient(IPMIConfig(...)) as ipmi,
+    APCPDUClient("10.0.5.20", community="...") as pdu,
+):
+    bmc = BMC(redfish=redfish, ipmi=ipmi, pdu=pdu, pdu_outlet=3)
+    transport = await bmc.power_action("cycle")
+    # transport == "redfish" | "ipmi" | "pdu"
+```
+
+`BMC.power_action` walks Redfish → IPMI → PDU outlet-cycle in order
+and returns the name of the transport that handled the action.
+
+## Security findings
+
+All adapters emit structured `BMCFinding` records (cipher 0 acceptance,
+default credentials matched, Pantsdown firmware window, SNMPv2c
+plaintext on the wire, HTTP-without-TLS endpoints) that callers can
+route into audit chains, SIEM events, or dashboards.
+
+```python
+for finding in client.findings:
+    audit.append(finding.to_dict())
+    # {
+    #   "code": "BMC_DEFAULT_CREDENTIALS_LIKELY",
+    #   "severity": "high",
+    #   "detail": "...",
+    #   "cve": [],
+    #   "vendor": "supermicro"
+    # }
+```
+
 ## What this is NOT
 
 - **Not a full Redfish client.** We map the operations BMC
   operators reach for. If you need something we don't expose
   (vendor-specific Oem actions on resources we don't enumerate),
   go write that PR — the library is small enough to extend.
-- **Not an IPMI client.** Some Supermicro / Lenovo gear still
-  wants IPMI for power-control corner cases; we recommend keeping
-  `ipmitool` around for those. If there's demand we'll add a
-  `bmc_adapters.ipmi` module under the same shape.
+- **Not RIBCL / RACADM / SUM.** Vendor-specific pre-Redfish CLIs
+  are a separate concern. RACADM (Dell) is on the v0.6.0 roadmap;
+  RIBCL is intentionally dropped (iLO 4 firmware ≥ 2.30 has
+  working Redfish since 2016, iLO 5/6 are Redfish-first).
 - **Not a CLI.** (Maybe soon — see "Coming soon" below.)
 - **Not certified Redfish-conformant.** Real BMC firmware ships
   bugs; the library absorbs them rather than pretending the spec

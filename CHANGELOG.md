@@ -4,6 +4,79 @@ All notable changes to `kvmfleet-bmc-adapters` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-06-05
+
+Multi-protocol expansion. The library is no longer Redfish-only — it
+now covers the operator-facing surface across every relevant out-of-
+band path.
+
+### Added — IPMI
+
+- `bmc_adapters.ipmi.IPMIClient` — async wrapper around `pyghmi`
+  (Apache 2.0). Mirrors `RedfishClient` shape: `power_action`,
+  `chassis_status`, `sensors`, `fru`, `sel_entries`, `sel_clear`.
+- Secure defaults: refuses IPMI 1.5, refuses cipher suites
+  0/1/2/6/7/8/11/12, prefers cipher 17 (SHA-256) and falls back to
+  cipher 3 (SHA-1).
+- Default-credential detection — constant-time compare against a
+  documented vendor/user/password table. The library never *probes*
+  the BMC with a default cred; the check is local.
+- Vendor fingerprinting via Get Device ID Manufacturer ID (IANA
+  Enterprise number).
+- Optional dependency — install with `[ipmi]` extra.
+
+### Added — Smart PDU control
+
+- `bmc_adapters.pdu.APCPDUClient` — APC AP86xx / AP88xx / AP89xx via
+  SNMPv2c or SNMPv3 (PowerNet-MIB).
+- `bmc_adapters.pdu.EatonPDUClient` — Eaton ePDU G4 via
+  EATON-EPDU-MIB.
+- `bmc_adapters.pdu.RaritanPDUClient` — Raritan PX2 / PX3 / PX4 (and
+  rebranded Legrand PDUs) via JSON-RPC over HTTPS.
+- `bmc_adapters.pdu.vendor_from_sysobjectid()` — vendor auto-detect
+  from SNMP `sysObjectID` prefix.
+- Refuses SNMPv2c by default unless `allow_snmpv2c=True` is passed;
+  emits `PDU_SNMPV2C_PLAINTEXT` finding when accepted.
+- Default-credential warnings for APC `apc/apc`, Raritan
+  `admin/raritan`, Legrand `admin/legrand@1`.
+- Optional dependency — install with `[pdu]` extra.
+
+### Added — Wake-on-LAN
+
+- `bmc_adapters.wake_on_lan()` — async wrapper around the stdlib
+  socket sender; pure-stdlib, no dependency.
+- `bmc_adapters.wake_on_lan_sync()` — synchronous variant.
+
+### Added — Cross-protocol orchestration
+
+- `bmc_adapters.BMC` — top-level orchestrator composing Redfish +
+  IPMI + PDU adapters. Dispatches `power_action` to the first
+  adapter that supports it. Inspired by `bmclib`'s registry
+  pattern (github.com/bmc-toolbox/bmclib).
+- `bmc_adapters.BMCFinding` — structured security observations
+  emitted by adapters (cipher 0 accepted, default credentials
+  matched, Pantsdown firmware window, etc.). JSON-serialisable
+  via `.to_dict()`. Hooks into KVM Fleet's Merkle audit chain in
+  the hosted product.
+- `bmc_adapters.Feature` enum — taxonomy of operations an OOB
+  path may support (POWER_STATE, OUTLET_CONTROL, SOL, SEL_READ,
+  ...). Used by the orchestrator for feature dispatch.
+- `bmc_adapters.matches_default_credential()` — constant-time
+  detector for documented vendor/user/password defaults.
+- `bmc_adapters.pantsdown_finding()` — Pantsdown / CVE-2019-6260
+  fingerprint helper for AST2400/AST2500 BMC firmware.
+
+### Changed
+
+- README hero rewritten to reflect multi-protocol scope.
+- Package `description` updated.
+- `keywords` expanded.
+
+### Migration notes
+
+All v0.3.0 APIs (`RedfishClient` and friends) remain compatible.
+No breaking changes. The new protocol modules are independent.
+
 ## [0.3.0] — 2026-06-05
 
 Maximise-within-scope pass: expand `RedfishClient` from a platform-pull

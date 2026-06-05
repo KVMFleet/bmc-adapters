@@ -4,12 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kvmfleet-bmc-adapters"
-version = "0.3.0"
-description = "Production-grade async Python client for multi-vendor BMC Redfish access (Dell iDRAC, HPE iLO, Supermicro, Lenovo XCC, OpenBMC). Powers KVM Fleet's hosted access-governance platform."
+version = "0.4.0"
+description = "Async Python library for out-of-band server management — Redfish, IPMI, smart PDUs (APC / Eaton / Raritan), and Wake-on-LAN. Vendor quirks absorbed."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
-keywords = ["bmc", "redfish", "idrac", "ilo", "supermicro", "lenovo-xcc", "openbmc", "ipmi", "out-of-band"]
+keywords = [
+  "bmc", "redfish", "ipmi", "pdu", "wake-on-lan", "wol", "snmp",
+  "idrac", "ilo", "supermicro", "lenovo-xcc", "openbmc",
+  "apc", "eaton", "raritan", "out-of-band",
+]
 authors = [
   { name = "KVM Fleet", email = "support@kvmfleet.io" },
 ]
@@ -23,6 +27,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Topic :: System :: Hardware",
+  "Topic :: System :: Networking",
   "Topic :: System :: Systems Administration",
   "Framework :: AsyncIO",
 ]
@@ -37,6 +42,20 @@ Issues = "https://github.com/KVMFleet/bmc-adapters/issues"
 "KVM Fleet" = "https://kvmfleet.io"
 
 [project.optional-dependencies]
+ipmi = [
+  "pyghmi>=1.6.0",
+]
+pdu = [
+  "pysnmp>=6.2,<7",
+]
+ssh = [
+  "asyncssh>=2.14",
+]
+all = [
+  "pyghmi>=1.6.0",
+  "pysnmp>=6.2,<7",
+  "asyncssh>=2.14",
+]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.24",

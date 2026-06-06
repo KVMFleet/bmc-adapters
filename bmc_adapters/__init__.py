@@ -78,7 +78,7 @@ from bmc_adapters.redfish import (
 )
 from bmc_adapters.wol import wake_on_lan, wake_on_lan_sync
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     # Redfish (existing)

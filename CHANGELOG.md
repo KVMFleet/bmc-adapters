@@ -4,6 +4,52 @@ All notable changes to `kvmfleet-bmc-adapters` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [SemVer](https://semver.org/).
 
+## [0.6.0] — 2026-06-06
+
+Tier 3: Dell RACADM legacy adapter and a reusable async-SSH
+transport. Scope intentionally tight — 10 commands cover the
+operator surface that Redfish doesn't reach on iDRAC6/7 (and the
+"Redfish wedged, fall back" path on iDRAC8/9).
+
+### Added — Shared SSH transport (`bmc_adapters.transport.ssh`)
+
+- `AsyncSSHCLIClient` — persistent asyncssh connection with
+  bounded per-host concurrency, idle-friendly defaults, and
+  legacy KEX / host-key algorithm support for older BMCs
+  (iDRAC6/7, older CMC).
+- `SSHCreds` — username + password / key pair.
+- Used by the RACADM adapter; reserved for future SSH-CLI
+  wrappers.
+
+### Added — Dell RACADM adapter (`bmc_adapters.racadm`)
+
+- `RACADMClient` — async wrapper around the `racadm` SSH shell.
+- 10-command core:
+  - Power: `power_action` (on/off/off_hard/cycle/reboot/soft),
+    `power_status`.
+  - Inventory: `get_system_info`, `get_version`,
+    `get_service_tag`.
+  - Logs: `get_sel`.
+  - BMC mgmt: `racreset` (soft / hard).
+  - Property DB: `get(fqdd)`, `set(fqdd, value)`.
+- Per-command parsers; permissive against firmware-version
+  output churn.
+- Optional dependency — install with `[ssh]` extra
+  (`pip install 'kvmfleet-bmc-adapters[ssh]'`).
+
+### Dropped from scope (intentional)
+
+- **HPE RIBCL** — iLO 4 firmware ≥ 2.30 (April 2016) has
+  working Redfish. iLO 5/6 are Redfish-first. Niche of a
+  shrinking niche. Implement only if a paying customer asks.
+- **Supermicro SUM / SMCIPMITool** — closed-source; can't
+  bundle. Redfish covers X12+.
+- **Lenovo OneCLI** — XCC3 is Redfish-aligned by design.
+  Closed-source.
+- **Cisco UCS IMC** — wrong audience (Intersight shops).
+- **OpenBMC console** — console multiplexing is a different
+  product surface entirely.
+
 ## [0.5.0] — 2026-06-05
 
 Tier 2 expansion: PiKVM ATX, IPMI Serial-over-LAN, and two more

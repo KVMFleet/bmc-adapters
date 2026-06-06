@@ -4,6 +4,41 @@ All notable changes to `kvmfleet-bmc-adapters` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [SemVer](https://semver.org/).
 
+## [0.5.0] — 2026-06-05
+
+Tier 2 expansion: PiKVM ATX, IPMI Serial-over-LAN, and two more
+PDU vendors.
+
+### Added — PiKVM adapter
+
+- `bmc_adapters.pikvm.PiKVMClient` — async client for PiKVM's
+  `kvmd` ATX endpoint (`/api/atx`, `/api/atx/power?action=...`).
+  Friendly verbs `on / off / off_hard / cycle / reboot` collapse
+  to kvmd's ATX action set.
+- Default-credential finding for the documented `admin/admin`.
+- Useful when KVM Fleet (or any orchestrator) needs to address a
+  PiKVM-managed target under the same shape as a BMC.
+
+### Added — IPMI Serial-over-LAN
+
+- `bmc_adapters.ipmi.sol_session(client)` — async context manager
+  that wraps `pyghmi.ipmi.console.Console` callbacks behind an
+  async iterator + send coroutine pair.
+- Always sends Deactivate Payload on exit (Supermicro X10 SoL
+  hang fix).
+
+### Added — PDU vendors
+
+- `bmc_adapters.pdu.TrippLitePDUClient` — Tripp Lite WEBCARDLX
+  (TRIPPLITE-PRODUCTS-MIB).
+- `bmc_adapters.pdu.CyberPowerPDUClient` — CyberPower
+  PDU15Mxxx/20Mxxx/30Mxxx (CyberPower-MIB).
+
+### Deferred from this release
+
+- JetKVM adapter — held until we have hardware to test against
+  (per the project's no-overpromising rule).
+
 ## [0.4.0] — 2026-06-05
 
 Multi-protocol expansion. The library is no longer Redfish-only — it

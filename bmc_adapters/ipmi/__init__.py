@@ -25,6 +25,7 @@ Usage:
             audit_log.append(finding.to_dict())
 """
 from .client import IPMIClient, IPMIConfig
+from .sol import sol_session
 from .types import (
     ACTION_TO_PYGHMI,
     FRU,
@@ -43,4 +44,5 @@ __all__ = [
     "PowerAction",
     "SELEntry",
     "Sensor",
+    "sol_session",
 ]

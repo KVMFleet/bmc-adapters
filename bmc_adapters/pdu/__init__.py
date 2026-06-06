@@ -29,12 +29,15 @@ from .base import (
     PDUClient,
     PDUMetrics,
 )
+from .cyberpower import CyberPowerPDUClient
 from .detect import PDUVendor, vendor_from_sysobjectid
 from .eaton import EatonPDUClient
 from .raritan import RaritanPDUClient
+from .tripplite import TrippLitePDUClient
 
 __all__ = [
     "APCPDUClient",
+    "CyberPowerPDUClient",
     "EatonPDUClient",
     "EnvironmentSensor",
     "Outlet",
@@ -44,5 +47,6 @@ __all__ = [
     "PDUMetrics",
     "PDUVendor",
     "RaritanPDUClient",
+    "TrippLitePDUClient",
     "vendor_from_sysobjectid",
 ]
